@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Barcode Matcher</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#333333">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            background-color: #f0f0f0;
+            overscroll-behavior: none;
+        }
+
+        /* LOGO */
+        .logo-container { text-align: center; margin-bottom: 10px; }
+        .logo-img { max-height: 70px; width: auto; }
+
+        h2 { text-align: center; margin: 0 0 15px 0; color: #333; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px;}
+
+        .input-group { margin-bottom: 12px; }
+        
+        label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.9rem; color: #555; text-transform: uppercase; }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.2rem;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: white;
+            color: #333;
+            font-family: monospace; /* Da se bolje vide razlike u brojevima */
+        }
+
+        input:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
+        }
+
+        /* GLAVNI STATUS PANEL */
+        #status-display {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: white;
+            border-radius: 12px;
+            background-color: #6c757d;
+            text-transform: uppercase;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            margin-bottom: 15px;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            padding: 10px;
+            line-height: 1.1;
+        }
+
+        .match { background-color: #28a745 !important; }
+        .mismatch { background-color: #dc3545 !important; }
+        .waiting { background-color: #6c757d !important; }
+
+        .btn-reset {
+            padding: 15px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            width: 100%;
+        }
+        
+        .btn-reset:active { background-color: #000; }
+    </style>
+</head>
+<body>
+
+    <div class="logo-container">
+        <img src="https://i.postimg.cc/L6KLbH84/Pogon-io-LOGO_vertical.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
+    </div>
+
+    <h2>Kontrola Pakovanja</h2>
+
+    <div class="input-group">
+        <label for="master">1. Zadati kod (Master)</label>
+        <input type="text" id="master" placeholder="Skeniraj..." autocomplete="off">
+    </div>
+
+    <div class="input-group">
+        <label for="check">2. Kod za proveru</label>
+        <input type="text" id="check" placeholder="Skeniraj..." autocomplete="off">
+    </div>
+
+    <div id="status-display" class="waiting">
+        SPREMNO
+    </div>
+
+    <button class="btn-reset" onclick="fullReset()">Nova Serija (Reset)</button>
+
+    <script>
+        const masterInput = document.getElementById('master');
+        const checkInput = document.getElementById('check');
+        const statusDisplay = document.getElementById('status-display');
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Zvukovi
+        function playTone(freq, type, duration) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = type;
+            oscillator.frequency.value = freq;
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), duration);
+        }
+
+        // Logika unosa
+        masterInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter" && this.value.trim() !== "") {
+                checkInput.focus();
+                statusDisplay.textContent = "SKENIRAJ UZORAK";
+                statusDisplay.className = "waiting";
+            }
+        });
+
+        checkInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                compareCodes();
+            }
+        });
+
+        function compareCodes() {
+            const master = masterInput.value.trim();
+            const check = checkInput.value.trim();
+
+            if (master === "") {
+                alert("Nema zadatog koda!");
+                masterInput.focus();
+                return;
+            }
+            if (check === "") return;
+
+            if (master === check) {
+                // DOBRO
+                statusDisplay.innerHTML = "OK<br>ISPRAVNO";
+                statusDisplay.className = "match";
+                playTone(600, 'sine', 100);
+                setTimeout(() => playTone(800, 'sine', 100), 150);
+                if (navigator.vibrate) navigator.vibrate(100);
+            } else {
+                // LOŠE
+                statusDisplay.innerHTML = "STOP<br>GREŠKA!";
+                statusDisplay.className = "mismatch";
+                playTone(150, 'sawtooth', 600);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+            }
+
+            checkInput.value = "";
+            // Mali delay da skeneri ne "progutaju" fokus
+            setTimeout(() => checkInput.focus(), 50);
+        }
+
+        function fullReset() {
+            masterInput.value = "";
+            checkInput.value = "";
+            statusDisplay.textContent = "SPREMNO";
+            statusDisplay.className = "waiting";
+            masterInput.focus();
+        }
+
+        // Pokretanje Service Workera
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+        
+        window.onload = () => masterInput.focus();
+    </script>
+</body>
+</html>

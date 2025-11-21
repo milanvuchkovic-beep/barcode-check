@@ -1,0 +1,4 @@
+// Minimalni Service Worker za PWA instalaciju
+self.addEventListener('fetch', function(event) {
+    // Prazan fetch handler je dovoljan da Chrome prepozna app kao instalabilan
+});
