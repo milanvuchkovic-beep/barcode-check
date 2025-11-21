@@ -161,7 +161,24 @@
             }
             if (check === "") return;
 
+            // --- NOVA LOGIKA POREĐENJA ---
+            let isMatch = false;
+
+            // 1. Potpuno isti kodovi
             if (master === check) {
+                isMatch = true;
+            }
+            // 2. Master je duži za 1, sklanjamo mu prvi znak (npr. Master: P123, Check: 123)
+            else if (master.length === check.length + 1 && master.substring(1) === check) {
+                isMatch = true;
+            }
+            // 3. Check je duži za 1, sklanjamo mu prvi znak (npr. Master: 123, Check: P123)
+            else if (check.length === master.length + 1 && check.substring(1) === master) {
+                isMatch = true;
+            }
+            // -----------------------------
+
+            if (isMatch) {
                 // DOBRO
                 statusDisplay.innerHTML = "OK<br>ISPRAVNO";
                 statusDisplay.className = "match";
@@ -177,10 +194,8 @@
             }
 
             checkInput.value = "";
-            // Mali delay da skeneri ne "progutaju" fokus
             setTimeout(() => checkInput.focus(), 50);
         }
-
         function fullReset() {
             masterInput.value = "";
             checkInput.value = "";
@@ -198,3 +213,4 @@
     </script>
 </body>
 </html>
+
