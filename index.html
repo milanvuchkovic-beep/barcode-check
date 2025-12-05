@@ -14,43 +14,44 @@
 
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
             margin: 0;
-            padding: 15px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             height: 100vh;
             box-sizing: border-box;
-            background-color: #f0f0f0;
+            background-color: #f4f4f4;
             overscroll-behavior: none;
         }
 
         .logo-container { text-align: center; margin-bottom: 5px; }
-        .logo-img { max-height: 60px; width: auto; }
+        .logo-img { max-height: 50px; width: auto; }
 
-        h2 { text-align: center; margin: 0 0 10px 0; color: #333; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;}
-
-        .input-group { margin-bottom: 12px; }
+        .input-group { margin-bottom: 15px; }
         
-        label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.9rem; color: #555; text-transform: uppercase; }
+        label { display: block; font-weight: bold; font-size: 0.9rem; color: #555; text-transform: uppercase; margin-bottom: 5px; }
         
         input {
             width: 100%;
-            padding: 12px;
-            font-size: 1.2rem;
+            padding: 15px;
+            font-size: 1.3rem;
             border: 2px solid #ccc;
             border-radius: 8px;
             box-sizing: border-box;
             background: white;
-            color: #333;
-            font-family: monospace; 
+            color: #000;
+            font-weight: bold;
+            font-family: monospace;
+            /* OVO SPREČAVA POJAVU TASTATURE */
+            caret-color: blue; /* Da se vidi kursor iako nema tastature */
         }
 
         input:focus {
             border-color: #007bff;
-            outline: none;
-            box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
             background-color: #fff;
+            box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
+            outline: none;
         }
 
         #status-display {
@@ -59,17 +60,15 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            font-size: 2.2rem;
+            font-size: 3rem;
             font-weight: 900;
             color: white;
             border-radius: 12px;
             background-color: #6c757d;
             text-transform: uppercase;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            margin-bottom: 15px;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
             padding: 10px;
-            line-height: 1.1;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
         }
 
         .match { background-color: #28a745 !important; }
@@ -82,18 +81,16 @@
             color: white;
             border: none;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
             text-transform: uppercase;
             font-weight: bold;
             width: 100%;
+            margin-top: auto;
         }
-        
-        .btn-reset:active { background-color: #000; }
-        
-        /* Mali indikator za status unosa */
-        .typing-indicator {
-            font-size: 0.7rem; color: #999; text-align: right; height: 15px;
+
+        .stats-row {
+            display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9rem; color: #444; font-family: monospace;
         }
     </style>
 </head>
@@ -103,102 +100,129 @@
         <img src="https://i.postimg.cc/PLACEHOLDER.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
     </div>
 
-    <h2>Kontrola pakovanja</h2>
-
     <div class="input-group">
-        <label for="master">1. Zadati kod (Master)</label>
-        <input type="text" id="master" placeholder="Skeniraj..." autocomplete="off">
+        <label>1. MASTER KOD</label>
+        <input type="text" id="master" inputmode="none" autocomplete="off">
     </div>
 
     <div class="input-group">
-        <label for="check">2. Kod za proveru</label>
-        <input type="text" id="check" placeholder="Skeniraj..." autocomplete="off">
+        <label>2. KOD ZA PROVERU</label>
+        <input type="text" id="check" inputmode="none" autocomplete="off">
     </div>
 
     <div id="status-display" class="waiting">SPREMNO</div>
 
-    <button class="btn-reset" onclick="fullReset()">Nova Serija (Reset)</button>
+    <button class="btn-reset" onclick="fullReset()">NOVA SERIJA</button>
 
-    <div style="display: flex; justify-content: space-between; margin-top: 15px; color: #555; font-size: 0.8rem;">
-        <div>Ukupno: <strong id="count-total">0</strong></div>
-        <div>Grešaka: <strong id="count-error" style="color: #dc3545;">0</strong></div>
-    </div>
-    <div style="text-align: center; margin-top: 5px;">
-        <button onclick="resetStats()" style="background: none; border: none; color: #aaa; font-size: 0.7rem;">Reset statistike</button>
+    <div class="stats-row">
+        <span>OK: <b id="count-total">0</b></span>
+        <span>ERR: <b id="count-error" style="color:#d00">0</b></span>
     </div>
 
     <script>
         const masterInput = document.getElementById('master');
         const checkInput = document.getElementById('check');
         const statusDisplay = document.getElementById('status-display');
-        const totalEl = document.getElementById('count-total');
-        const errorEl = document.getElementById('count-error');
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Učitaj statistiku
+        // Statistika
         let totalScans = parseInt(localStorage.getItem('scanTotal')) || 0;
         let errorScans = parseInt(localStorage.getItem('scanErrors')) || 0;
         updateStatsUI();
 
-        // --- REŠENJE 1: FORSIRANJE PORTRAIT MODA ---
-        async function lockPortrait() {
-            try {
-                if (screen.orientation && screen.orientation.lock) {
-                    await screen.orientation.lock("portrait");
-                    console.log("Ekran zaključan u portrait.");
-                }
-            } catch (err) {
-                // Ovo može da feiluje na desktopu ili ako user nije interagovao
-                // Nije kritično, samo ignorišemo grešku
-                console.log("Zaključavanje rotacije nije podržano ili dozvoljeno.");
-            }
-        }
+        // --- STABILNA LOGIKA UNOSA ---
+        let inputTimer;
+        const SCAN_TIMEOUT = 400; // Vreme čekanja ako nema ENTER-a
 
-        // Pokušaj zaključavanja na dodir bilo gde (browseri traže interakciju)
-        document.body.addEventListener('click', lockPortrait, { once: true });
-        // I pokušaj odmah pri učitavanju
-        lockPortrait();
-
-
-        // --- REŠENJE 2: AUTOMATSKA DETEKCIJA KRAJA SKENIRANJA (BEZ ENTERA) ---
-        let typingTimer;
-        const doneTypingInterval = 300; // 300ms čekamo pre nego što "opalimo" (dovoljno za spore skenere)
-
-        function setupAutoEnter(inputElement, callbackFunction) {
-            // Slušamo 'input' događaj (svaki karakter koji uđe)
-            inputElement.addEventListener('input', () => {
-                // Resetuj tajmer ako se još kuca/skenira
-                clearTimeout(typingTimer);
-                
-                // Ako je polje prazno, ne radi ništa
-                if (inputElement.value.trim() === "") return;
-
-                // Pokreni tajmer - ako prođe 300ms bez novog slova, izvrši funkciju
-                typingTimer = setTimeout(callbackFunction, doneTypingInterval);
+        function setupScanner(inputElement, onComplete) {
+            
+            // 1. Uvek očisti polje kad dobije fokus (sprečava lepljenje starog koda)
+            inputElement.addEventListener('focus', () => {
+                inputElement.value = "";
             });
 
-            // Zadržavamo i Enter funkcionalnost za svaki slučaj
+            // 2. Detekcija ENTER-a (za brze skenere)
             inputElement.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    clearTimeout(typingTimer);
-                    callbackFunction();
+                    clearTimeout(inputTimer);
+                    // Odmah skloni fokus da sprečiš dodatna slova
+                    inputElement.blur(); 
+                    onComplete();
+                }
+            });
+
+            // 3. Detekcija unosa (za skenere bez Entera)
+            inputElement.addEventListener('input', () => {
+                clearTimeout(inputTimer);
+                // Ako je nešto uneto, čekaj malo pa izvrši
+                if (inputElement.value.trim().length > 0) {
+                    inputTimer = setTimeout(() => {
+                        inputElement.blur();
+                        onComplete();
+                    }, SCAN_TIMEOUT);
                 }
             });
         }
 
-        // Povezivanje logike na polja
-        setupAutoEnter(masterInput, handleMasterInput);
-        setupAutoEnter(checkInput, compareCodes);
-
-
-        // --- LOGIKA APLIKACIJE ---
-
-        function handleMasterInput() {
+        // Povezivanje Master polja
+        setupScanner(masterInput, () => {
             if(masterInput.value.trim() !== "") {
-                checkInput.focus();
                 statusDisplay.textContent = "SKENIRAJ UZORAK";
                 statusDisplay.className = "waiting";
+                // Prebaci fokus na Check polje
+                setTimeout(() => checkInput.focus(), 100);
             }
+        });
+
+        // Povezivanje Check polja
+        setupScanner(checkInput, compareCodes);
+
+        function compareCodes() {
+            const master = masterInput.value.trim();
+            const check = checkInput.value.trim();
+
+            if (master === "") {
+                alert("Nema Master koda!");
+                setTimeout(() => masterInput.focus(), 100);
+                return;
+            }
+            
+            // Ako je prazno (greška u čitanju), samo vrati fokus
+            if (check === "") {
+                setTimeout(() => checkInput.focus(), 100);
+                return;
+            }
+
+            if (master === check) {
+                statusDisplay.innerHTML = "OK";
+                statusDisplay.className = "match";
+                playTone(600, 'sine', 100);
+                totalScans++;
+            } else {
+                statusDisplay.innerHTML = "GREŠKA";
+                statusDisplay.className = "mismatch";
+                playTone(150, 'sawtooth', 600);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                errorScans++;
+            }
+
+            saveStats();
+
+            // KLJUČNO ZA STABILNOST:
+            // Očisti polje i vrati fokus nakon kratke pauze
+            // Ovo sprečava da skener "poludi" i upiše isti kod dvaput
+            checkInput.value = "";
+            setTimeout(() => {
+                checkInput.focus();
+            }, 200); 
+        }
+
+        function fullReset() {
+            masterInput.value = "";
+            checkInput.value = "";
+            statusDisplay.textContent = "SPREMNO";
+            statusDisplay.className = "waiting";
+            masterInput.focus();
         }
 
         function playTone(freq, type, duration) {
@@ -212,70 +236,18 @@
             setTimeout(() => oscillator.stop(), duration);
         }
 
-        function compareCodes() {
-            const master = masterInput.value.trim();
-            const check = checkInput.value.trim();
-
-            // Spreči prazna okidanja
-            if (master === "" || check === "") return;
-
-            totalScans++;
-
-            if (master === check) {
-                statusDisplay.innerHTML = "OK<br>ISPRAVNO";
-                statusDisplay.className = "match";
-                playTone(600, 'sine', 100);
-                setTimeout(() => playTone(800, 'sine', 100), 150);
-                if (navigator.vibrate) navigator.vibrate(100);
-            } else {
-                statusDisplay.innerHTML = "STOP<br>GREŠKA!";
-                statusDisplay.className = "mismatch";
-                playTone(150, 'sawtooth', 600);
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
-                errorScans++;
-            }
-
-            saveStats();
-            
-            checkInput.value = "";
-            // Ne vraćamo fokus odmah da ne bismo uhvatili "duhove" od skenera
-            // ali pošto imamo debounce (tajmer), sigurni smo.
-            setTimeout(() => checkInput.focus(), 50);
-        }
-
-        function fullReset() {
-            masterInput.value = "";
-            checkInput.value = "";
-            statusDisplay.textContent = "SPREMNO";
-            statusDisplay.className = "waiting";
-            masterInput.focus();
-        }
-
         function saveStats() {
             localStorage.setItem('scanTotal', totalScans);
             localStorage.setItem('scanErrors', errorScans);
             updateStatsUI();
         }
-
         function updateStatsUI() {
-            totalEl.textContent = totalScans;
-            errorEl.textContent = errorScans;
+            document.getElementById('count-total').textContent = totalScans;
+            document.getElementById('count-error').textContent = errorScans;
         }
 
-        function resetStats() {
-            if(confirm("Resetuj brojače?")) {
-                totalScans = 0; errorScans = 0; saveStats();
-            }
-        }
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-        
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
         window.onload = () => masterInput.focus();
     </script>
 </body>
 </html>
-
-
-
