@@ -23,6 +23,40 @@
             box-sizing: border-box;
             background-color: #f4f4f4;
             overscroll-behavior: none;
+            user-select: none; /* Sprečava selektovanje teksta slučajno */
+        }
+
+        /* START OVERLAY - KLJUČNO ZA ROTACIJU */
+        #start-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+        }
+        
+        #start-btn {
+            padding: 20px 40px;
+            font-size: 2rem;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
+            margin-top: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         .logo-container { text-align: center; margin-bottom: 5px; }
@@ -43,13 +77,13 @@
             color: #000;
             font-weight: bold;
             font-family: monospace;
-            /* OVO SPREČAVA POJAVU TASTATURE */
-            caret-color: blue; /* Da se vidi kursor iako nema tastature */
+            caret-color: transparent; /* Sakrij kursor da ne zbunjuje */
         }
 
+        /* Vizuelni fokus */
         input:focus {
             border-color: #007bff;
-            background-color: #fff;
+            background-color: #e6f2ff;
             box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
             outline: none;
         }
@@ -96,6 +130,12 @@
 </head>
 <body>
 
+    <div id="start-overlay" onclick="startApp()">
+        <div style="font-size: 3rem;">🔒</div>
+        <button id="start-btn">ZAPOČNI RAD</button>
+        <p style="margin-top: 15px; color: #ccc; font-size: 0.9rem;">Dodirni za zaključavanje ekrana</p>
+    </div>
+
     <div class="logo-container">
         <img src="https://i.postimg.cc/PLACEHOLDER.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
     </div>
@@ -123,6 +163,7 @@
         const masterInput = document.getElementById('master');
         const checkInput = document.getElementById('check');
         const statusDisplay = document.getElementById('status-display');
+        const overlay = document.getElementById('start-overlay');
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         // Statistika
@@ -130,31 +171,54 @@
         let errorScans = parseInt(localStorage.getItem('scanErrors')) || 0;
         updateStatsUI();
 
-        // --- STABILNA LOGIKA UNOSA ---
+        // --- FUNKCIJA ZA ZAKLJUČAVANJE (POKREĆE SE NA KLIK) ---
+        async function startApp() {
+            try {
+                // 1. Pokušaj Fullscreen (Browseri ovo vole pre zaključavanja)
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { /* Safari/Chrome older */
+                    await document.documentElement.webkitRequestFullscreen();
+                }
+
+                // 2. Pokušaj zaključavanje orijentacije
+                if (screen.orientation && screen.orientation.lock) {
+                    // "portrait-primary" ZABRANJUJE naopako (180 stepeni)
+                    await screen.orientation.lock("portrait-primary");
+                    console.log("Ekran zaključan uspešno.");
+                }
+            } catch (err) {
+                console.log("Lock nije uspeo (možda nije podržan):", err);
+            }
+            
+            // Sakrij overlay
+            overlay.style.display = 'none';
+            masterInput.focus();
+        }
+
+        // --- LOGIKA UNOSA ---
         let inputTimer;
-        const SCAN_TIMEOUT = 400; // Vreme čekanja ako nema ENTER-a
+        const SCAN_TIMEOUT = 400; 
 
         function setupScanner(inputElement, onComplete) {
             
-            // 1. Uvek očisti polje kad dobije fokus (sprečava lepljenje starog koda)
+            // Brisanje na fokus
             inputElement.addEventListener('focus', () => {
                 inputElement.value = "";
             });
 
-            // 2. Detekcija ENTER-a (za brze skenere)
+            // Enter detekcija
             inputElement.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     clearTimeout(inputTimer);
-                    // Odmah skloni fokus da sprečiš dodatna slova
                     inputElement.blur(); 
                     onComplete();
                 }
             });
 
-            // 3. Detekcija unosa (za skenere bez Entera)
+            // Input detekcija (Timer)
             inputElement.addEventListener('input', () => {
                 clearTimeout(inputTimer);
-                // Ako je nešto uneto, čekaj malo pa izvrši
                 if (inputElement.value.trim().length > 0) {
                     inputTimer = setTimeout(() => {
                         inputElement.blur();
@@ -164,17 +228,15 @@
             });
         }
 
-        // Povezivanje Master polja
         setupScanner(masterInput, () => {
             if(masterInput.value.trim() !== "") {
                 statusDisplay.textContent = "SKENIRAJ UZORAK";
                 statusDisplay.className = "waiting";
-                // Prebaci fokus na Check polje
-                setTimeout(() => checkInput.focus(), 100);
+                // Delay za fokus da se browser ne zbuni
+                setTimeout(() => checkInput.focus(), 150);
             }
         });
 
-        // Povezivanje Check polja
         setupScanner(checkInput, compareCodes);
 
         function compareCodes() {
@@ -183,13 +245,11 @@
 
             if (master === "") {
                 alert("Nema Master koda!");
-                setTimeout(() => masterInput.focus(), 100);
+                setTimeout(() => masterInput.focus(), 150);
                 return;
             }
-            
-            // Ako je prazno (greška u čitanju), samo vrati fokus
             if (check === "") {
-                setTimeout(() => checkInput.focus(), 100);
+                setTimeout(() => checkInput.focus(), 150);
                 return;
             }
 
@@ -202,19 +262,17 @@
                 statusDisplay.innerHTML = "GREŠKA";
                 statusDisplay.className = "mismatch";
                 playTone(150, 'sawtooth', 600);
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                if (navigator.vibrate) navigator.vibrate([300, 100, 300]); // Jača vibracija
                 errorScans++;
             }
 
             saveStats();
 
-            // KLJUČNO ZA STABILNOST:
-            // Očisti polje i vrati fokus nakon kratke pauze
-            // Ovo sprečava da skener "poludi" i upiše isti kod dvaput
+            // Očisti i vrati fokus
             checkInput.value = "";
             setTimeout(() => {
                 checkInput.focus();
-            }, 200); 
+            }, 250); // Malo duži delay za stabilnost
         }
 
         function fullReset() {
@@ -247,7 +305,6 @@
         }
 
         if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
-        window.onload = () => masterInput.focus();
     </script>
 </body>
 </html>
