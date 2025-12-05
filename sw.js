@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skener-app-v3';
+const CACHE_NAME = 'skener-app-v4';
 const FILES_TO_CACHE = [
     './',
     './index.html',
@@ -42,5 +42,6 @@ self.addEventListener('fetch', (event) => {
         })
     );
 });
+
 
 
